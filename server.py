@@ -12,12 +12,13 @@ ADDRESS = (HOST, PORT)
 ENCODING = "utf-8"
 EXIT_COMMAND = "!EXIT"
 
+# Create server socket
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.bind(ADDRESS)
 
+# Store connected clients
 connected_clients = {}
 client_lock = threading.Lock()
-
 
 def disconnect_client(username, connection):
     """Disconnects a client and removes them from the list."""
@@ -25,7 +26,6 @@ def disconnect_client(username, connection):
         if username in connected_clients:
             del connected_clients[username]
             connection.close()
-
 
 def send_to_all(message, exclude=None, target=None):
     """Sends messages to all connected clients except the sender or to a specific target."""
@@ -46,18 +46,19 @@ def send_to_all(message, exclude=None, target=None):
                         print(f"Failed to send to {client_name}: {e}")
                         disconnect_client(client_name, client_socket)
 
-
 def manage_client(conn, addr):
+    """Handles communication with a connected client."""
     print(f"[NEW CONNECTION] {addr} joined.")
-
+    
     try:
+        # Receive username from the client
         username = conn.recv(BUFFER_SIZE).decode(ENCODING)
         with client_lock:
             connected_clients[username] = conn
         print(f"{username} joined the chat.")
 
-        welcome_message = f"{Fore.GREEN}{username} has entered the chat.{Style.RESET_ALL}".encode(
-            ENCODING)
+        # Send welcome message to all clients
+        welcome_message = f"{Fore.GREEN}{username} has entered the chat.{Style.RESET_ALL}".encode(ENCODING)
         send_to_all(welcome_message, exclude=conn)
 
         while True:
@@ -68,20 +69,19 @@ def manage_client(conn, addr):
             if message == EXIT_COMMAND:
                 break
 
+            # Handle private messages
             if "@" in message:
                 mentioned = message.split('@')[1].split()[0]
                 if mentioned in connected_clients:
-                    private_msg = f"{Fore.MAGENTA}[PRIVATE] {message}{Style.RESET_ALL}".encode(
-                        ENCODING)
+                    private_msg = f"{Fore.MAGENTA}[PRIVATE] {message}{Style.RESET_ALL}".encode(ENCODING)
                     send_to_all(private_msg, exclude=conn, target=mentioned)
                     print(f"[PRIVATE] {message}")
                 else:
-                    error_msg = f"{Fore.RED}User @{mentioned} was not found.{Style.RESET_ALL}".encode(
-                        ENCODING)
+                    error_msg = f"{Fore.RED}User @{mentioned} was not found.{Style.RESET_ALL}".encode(ENCODING)
                     conn.send(error_msg)
             else:
-                time_stamp = time.strftime(
-                    '%Y-%m-%d %H:%M:%S', time.localtime())
+                # Broadcast message to all clients
+                time_stamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
                 final_msg = f"[{time_stamp}] {message}".encode(ENCODING)
                 send_to_all(final_msg, exclude=conn)
                 print(f"[{time_stamp}] {message}")
@@ -90,27 +90,23 @@ def manage_client(conn, addr):
         print(f"Error occurred: {e}")
     finally:
         disconnect_client(username, conn)
-        leave_msg = f"{Fore.RED}{username} has left.{Style.RESET_ALL}".encode(
-            ENCODING)
+        leave_msg = f"{Fore.RED}{username} has left.{Style.RESET_ALL}".encode(ENCODING)
         send_to_all(leave_msg)
         print(f"{username} has left.")
 
-
 def admin_messages():
-    """Server-side input to send messages to clients."""
+    """Allows server-side input to send messages to clients."""
     while True:
         sys.stdout.write("Admin: ")
         sys.stdout.flush()
         msg = input()
         if msg:
-            server_msg = f"{Fore.YELLOW}[SERVER] {msg}{Style.RESET_ALL}".encode(
-                ENCODING)
+            server_msg = f"{Fore.YELLOW}[SERVER] {msg}{Style.RESET_ALL}".encode(ENCODING)
             send_to_all(server_msg)
 
-
 def initialize_server():
+    """Initializes the server and starts listening for connections."""
     init()
-
     print(f"[SERVER STARTED] Listening on {HOST}")
     server_socket.listen()
 
@@ -119,11 +115,9 @@ def initialize_server():
 
     while True:
         conn, addr = server_socket.accept()
-        client_thread = threading.Thread(
-            target=manage_client, args=(conn, addr))
+        client_thread = threading.Thread(target=manage_client, args=(conn, addr))
         client_thread.start()
         print(f"[ACTIVE CONNECTIONS] {threading.active_count() - 1}")
-
 
 print("[SERVER INITIALIZING]")
 initialize_server()
