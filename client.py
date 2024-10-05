@@ -11,6 +11,10 @@ ADDRESS = (HOST, PORT)
 ENCODING = "utf-8"
 EXIT_COMMAND = "!EXIT"
 
+# Color constants
+COLOR_WHITE = Fore.WHITE
+COLOR_BLUE = Fore.BLUE
+COLOR_RESET = Style.RESET_ALL
 
 def establish_connection():
     """Initiates connection with the server."""
@@ -23,15 +27,14 @@ def establish_connection():
         print(f"Connection failed: {err}")
         return None
 
-
 def transmit(conn, message):
-    """Sends data to the server."""
+    """Sends data to the server and informs the user that an email notification has been sent."""
     try:
         msg_data = message.encode(ENCODING)
         conn.send(msg_data)
+        print("Message sent. Email notification will be sent to all users.")
     except Exception as err:
         print(f"Message transmission error: {err}")
-
 
 def handle_server_responses(conn):
     """Listens for and displays messages from the server."""
@@ -40,8 +43,7 @@ def handle_server_responses(conn):
             incoming_msg = conn.recv(BUFFER_SIZE).decode(ENCODING)
             if incoming_msg:
                 sys.stdout.write("\033[K")  # Clears the line
-                sys.stdout.write(
-                    f"\r{Fore.WHITE}{incoming_msg}{Style.RESET_ALL}\n")
+                sys.stdout.write(f"\r{COLOR_WHITE}{incoming_msg}{COLOR_RESET}\n")
                 sys.stdout.write("Type here: ")
                 sys.stdout.flush()
             else:
@@ -49,27 +51,22 @@ def handle_server_responses(conn):
         except Exception:
             break
 
-
 def send_user_identity(conn, username):
     """Sends the username to the server upon connection."""
     transmit(conn, username)
-
 
 def input_handler(conn, username):
     """Handles user inputs in a separate thread."""
     send_user_identity(conn, username)
 
     while True:
-        sys.stdout.write("Type here: ")
-        sys.stdout.flush()
-        msg_content = input()
-
+        msg_content = input("Type here: ").strip()
+        
         if msg_content.lower() == 'q':
             break
 
-        user_msg = f"{Fore.BLUE}{username}: {msg_content}{Style.RESET_ALL}"
+        user_msg = f"{COLOR_BLUE}{username}: {msg_content}{COLOR_RESET}"
         transmit(conn, user_msg)
-
 
 def initiate_client():
     init()
@@ -80,14 +77,16 @@ def initiate_client():
         return
 
     connection = establish_connection()
-
     if not connection:
         return
 
-    user_name = input("Enter your preferred username: ")
+    user_name = input("Enter your preferred username: ").strip()
+    if not user_name:
+        print("Username cannot be empty. Disconnecting...")
+        connection.close()
+        return
 
-    receiver_thread = threading.Thread(
-        target=handle_server_responses, args=(connection,))
+    receiver_thread = threading.Thread(target=handle_server_responses, args=(connection,))
     receiver_thread.daemon = True
     receiver_thread.start()
 
@@ -100,5 +99,5 @@ def initiate_client():
         connection.close()
         print('Client has been disconnected.')
 
-
+# Run the client
 initiate_client()
